@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TIRE-MES 4.0 | Hệ Thống Điều Hành Sản Xuất Nhà Máy Lốp Xe</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23111827' stroke='%2338bdf8' stroke-width='8'/><circle cx='50' cy='50' r='20' fill='%23374151'/></svg>">
+</head>
+<body>
+
+  <!-- TOP NAVBAR -->
+  <header class="navbar">
+    <div class="nav-brand">
+      <div class="brand-logo">TM</div>
+      <div class="brand-text">
+        <h1>TIRE-MES 4.0 &bull; VIETNAM TIRE PLANT</h1>
+        <p>HỆ THỐNG ĐIỀU HÀNH SẢN XUẤT LỐP XE CHUẨN ISA-95 LEVEL 3</p>
+      </div>
+    </div>
+
+    <div class="nav-status">
+      <div class="status-badge">
+        <span class="pulse-dot"></span>
+        <span id="scada-status-text">IoT SCADA LIVE (500ms)</span>
+      </div>
+
+      <div class="shift-info">
+        <div>CA: <span id="current-shift">CA A (06:00 - 14:00)</span></div>
+        <div>QUẢN ĐỐC: <span id="current-supervisor">Vũ Đình Phong</span></div>
+        <div id="live-clock" style="color: #94a3b8;">--:--:--</div>
+      </div>
+
+      <button class="btn btn-secondary btn-sm" onclick="resetDemoData()" title="Khôi phục lại dữ liệu mẫu sạch">
+        ↺ Reset Demo
+      </button>
+    </div>
+  </header>
+
+  <!-- NAVIGATION TABS -->
+  <nav class="nav-tabs-bar">
+    <button class="tab-btn active" onclick="switchTab('dashboard')">
+      📊 1. Tổng Quan Nhà Máy
+    </button>
+    <button class="tab-btn" onclick="switchTab('work-orders')">
+      📋 2. Lệnh Sản Xuất <span class="badge" id="badge-wo-count">5</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('tbm')">
+      ⚙️ 3. Trạm Thành Hình TBM
+    </button>
+    <button class="tab-btn" onclick="switchTab('curing')">
+      🔥 4. Trạm Lưu Hóa Lốp <span class="badge" id="badge-curing-active">3</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('quality')">
+      🔍 5. Trạm KCS & Hoàn Thiện <span class="badge" id="badge-qc-queue">2</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('genealogy')">
+      🛡️ 6. Truy Xuất Nguồn Gốc 100%
+    </button>
+    <button class="tab-btn" onclick="switchTab('master-data')">
+      📁 7. Master Data
+    </button>
+    <button class="tab-btn" onclick="switchTab('gateway')">
+      🌐 8. Cổng Giao Thức PLC & IIoT <span class="badge" style="background-color: #059669; color: #fff;">5 Giao Thức</span>
+    </button>
+  </nav>
+
+  <!-- MAIN VIEWPORT -->
+  <main class="main-container">
+
+    <!-- =================================================================== -->
+    <!-- TAB 1: EXECUTIVE DASHBOARD & KPIS                                   -->
+    <!-- =================================================================== -->
+    <section id="pane-dashboard" class="tab-pane active">
+      <!-- KPI Top Row -->
+      <div class="kpi-grid">
+        <div class="kpi-card blue">
+          <div class="kpi-title">OEE Tổng Thể Nhà Máy</div>
+          <div class="kpi-value"><span id="kpi-oee">--</span><span class="kpi-unit">%</span></div>
+          <div class="kpi-foot">
+            <span>A: <strong id="kpi-avail">--%</strong></span>
+            <span>P: <strong id="kpi-perf">--%</strong></span>
+            <span>Q: <strong id="kpi-qual">--%</strong></span>
+          </div>
+        </div>
+
+        <div class="kpi-card green">
+          <div class="kpi-title">Tỷ Lệ Đạt Lần Đầu (FPY)</div>
+          <div class="kpi-value"><span id="kpi-fpy">--</span><span class="kpi-unit">%</span></div>
+          <div class="kpi-foot">
+            <span>Mục tiêu: &ge; 98.0%</span>
+            <span class="status-pill pill-green">ĐẠT CHUẨN</span>
+          </div>
+        </div>
+
+        <div class="kpi-card red">
+          <div class="kpi-title">Tỷ Lệ Phế Phẩm (Scrap)</div>
+          <div class="kpi-value"><span id="kpi-scrap">--</span><span class="kpi-unit">%</span></div>
+          <div class="kpi-foot">
+            <span>Phế phẩm: <strong id="kpi-scrap-count">--</strong> lốp</span>
+            <span>Ngưỡng max: &le; 2.0%</span>
+          </div>
+        </div>
+
+        <div class="kpi-card cyan">
+          <div class="kpi-title">Sản Lượng Lốp Đã Đóng (TBM)</div>
+          <div class="kpi-value"><span id="kpi-green-tires">--</span><span class="kpi-unit">Lốp</span></div>
+          <div class="kpi-foot">
+            <span>Lốp chín đã ra lò: <strong id="kpi-cured-tires">--</strong></span>
+          </div>
+        </div>
+
+        <div class="kpi-card purple">
+          <div class="kpi-title">Thiết Bị Đang Vận Hành</div>
+          <div class="kpi-value"><span id="kpi-running-machines">--</span><span class="kpi-unit">/11 Máy</span></div>
+          <div class="kpi-foot">
+            <span>Lệnh đang chạy: <strong id="kpi-active-wos">--</strong></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ISA-95 Production Flow Pipeline -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🏭 Dây Chuyền Sản Xuất Khép Kín (ISA-95 Plant Hierarchy)</div>
+            <div class="card-subtitle">Giám sát theo thời gian thực từ Luyện cao su thô đến Kho thành phẩm xuất xưởng</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="loadDashboard()">Cập Nhật</button>
+        </div>
+
+        <div class="pipeline-container" id="pipeline-areas">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Charts & Quality Distribution -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;">
+        <!-- Grade Distribution -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🎯 Phân Cấp Hạng Chất Lượng Lốp (Quality Grading)</div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; text-align: center; margin-bottom: 1rem;">
+            <div style="background: #152238; padding: 0.85rem; border-radius: 8px; border-left: 3px solid #10b981;">
+              <div style="font-size: 0.75rem; color: #94a3b8;">HẠNG A (OE Export)</div>
+              <div style="font-size: 1.6rem; font-weight: 800; color: #34d399;" id="count-grade-a">--</div>
+            </div>
+            <div style="background: #152238; padding: 0.85rem; border-radius: 8px; border-left: 3px solid #3b82f6;">
+              <div style="font-size: 0.75rem; color: #94a3b8;">HẠNG B (Aftermarket)</div>
+              <div style="font-size: 1.6rem; font-weight: 800; color: #60a5fa;" id="count-grade-b">--</div>
+            </div>
+            <div style="background: #152238; padding: 0.85rem; border-radius: 8px; border-left: 3px solid #f59e0b;">
+              <div style="font-size: 0.75rem; color: #94a3b8;">TÁI CHẾ (Rework)</div>
+              <div style="font-size: 1.6rem; font-weight: 800; color: #fbbf24;" id="count-grade-rework">--</div>
+            </div>
+            <div style="background: #152238; padding: 0.85rem; border-radius: 8px; border-left: 3px solid #ef4444;">
+              <div style="font-size: 0.75rem; color: #94a3b8;">PHẾ PHẨM (Scrap)</div>
+              <div style="font-size: 1.6rem; font-weight: 800; color: #f87171;" id="count-grade-scrap">--</div>
+            </div>
+          </div>
+          <div id="quality-pareto-list">
+            <!-- Pareto list populated by JS -->
+          </div>
+        </div>
+
+        <!-- Recent Events Live Stream -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">📡 Nhật Ký Hoạt Động Xưởng (Live Factory Stream)</div>
+            <span class="status-pill pill-cyan">REAL-TIME</span>
+          </div>
+          <div id="recent-events-stream" style="max-height: 280px; overflow-y: auto;">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TAB 2: WORK ORDERS & SCHEDULING                                    -->
+    <!-- =================================================================== -->
+    <section id="pane-work-orders" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">📋 Quản Lý Lệnh Sản Xuất (Work Orders Management)</div>
+            <div class="card-subtitle">Lập kế hoạch, điều độ chuyền và theo dõi tiến độ thời gian thực</div>
+          </div>
+          <button class="btn btn-primary" onclick="openCreateWOModal()">+ Tạo Lệnh Sản Xuất Mới</button>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Mã Lệnh (WO ID)</th>
+                <th>Mã Lốp (SKU)</th>
+                <th>Kích Cỡ / Gai Lốp</th>
+                <th>Phân Khúc</th>
+                <th>Mục Tiêu</th>
+                <th>Đã Hoàn Thành</th>
+                <th>Tiến Độ (%)</th>
+                <th>Phế Phẩm</th>
+                <th>Máy Giao</th>
+                <th>Trạng Thái</th>
+                <th>Thao Tác</th>
+              </tr>
+            </thead>
+            <tbody id="wo-table-body">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TAB 3: TBM BUILDING TERMINAL (POKA-YOKE)                           -->
+    <!-- =================================================================== -->
+    <section id="pane-tbm" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">⚙️ Trạm Thành Hình Lốp Sống (TBM Building Machine Terminal)</div>
+            <div class="card-subtitle">Kiểm soát Poka-Yoke mã vạch bán thành phẩm 100% trước khi kích hoạt đóng lốp</div>
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <select class="form-control" id="tbm-machine-select" style="width: auto;" onchange="onTbmMachineChange()">
+              <option value="TBM-01">TBM-01 (VMI MAXX PCR Uni-Stage)</option>
+              <option value="TBM-02">TBM-02 (HF 2-Stage TBR Truck)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- TBM Control Console -->
+        <div style="display: grid; grid-template-columns: 1fr 1.6fr; gap: 1.5rem;">
+          <!-- Left: Work Order & Machine Info -->
+          <div>
+            <div style="background: #162032; padding: 1.25rem; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 1rem;">
+              <h4 style="color: #38bdf8; margin-bottom: 0.75rem; font-size: 0.95rem;">THÔNG TIN LỆNH ĐANG CHẠY</h4>
+              <div class="form-group">
+                <label class="form-label">Lệnh Sản Xuất (Work Order)</label>
+                <select class="form-control" id="tbm-active-wo" onchange="onTbmWOChange()">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Kích Cỡ Lốp (Tire Size)</label>
+                <div id="tbm-tire-size-display" style="font-size: 1.3rem; font-weight: 800; color: #fff;">--</div>
+                <div id="tbm-tire-pattern-display" style="font-size: 0.85rem; color: #94a3b8;">--</div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                <div>
+                  <div class="gauge-label">Trọng lượng chuẩn</div>
+                  <div id="tbm-std-weight" style="font-size: 1.1rem; font-weight: 700; color: #f1f5f9;">-- kg</div>
+                </div>
+                <div>
+                  <div class="gauge-label">Thời gian chu kỳ</div>
+                  <div id="tbm-std-cycle" style="font-size: 1.1rem; font-weight: 700; color: #f1f5f9;">-- giây</div>
+                </div>
+              </div>
+
+              <hr style="border-color: var(--border-color); margin: 1rem 0;">
+
+              <div class="form-group">
+                <label class="form-label">Công Nhân Vận Hành (Operator Badge)</label>
+                <select class="form-control" id="tbm-operator-select">
+                  <option value="OP-1001">OP-1001: Nguyễn Văn Hùng (Bậc 5/5)</option>
+                  <option value="OP-1002">OP-1002: Trần Quốc Toản (Bậc 4/5)</option>
+                  <option value="OP-1003">OP-1003: Đặng Văn Lâm (Bậc 3/5)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Cân Điện Tử Thực Tế (kg)</label>
+                <input type="number" step="0.01" class="form-control" id="tbm-actual-weight" value="9.28">
+              </div>
+            </div>
+
+            <!-- Quick Test Buttons -->
+            <div style="display: flex; gap: 0.5rem; flex-direction: column;">
+              <button class="btn btn-secondary btn-sm" onclick="quickFillValidLots()">
+                ⚡ Nạp Nhanh Lô Hợp Lệ (Quick Test Valid)
+              </button>
+              <button class="btn btn-danger btn-sm" onclick="quickFillExpiredLot()">
+                ⚠️ Thử Nạp Lô HẾT HẠN (Poka-Yoke Alarm Demo!)
+              </button>
+            </div>
+          </div>
+
+          <!-- Right: Component Scanning & Poka-Yoke Gate -->
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+              <h4 style="color: #fff; font-size: 0.95rem;">CỔNG XÁC THỰC BÁN THÀNH PHẨM (POKA-YOKE SCAN GATE)</h4>
+              <span id="poka-yoke-global-status" class="status-pill pill-amber">CHỜ QUÉT ĐỦ 7 HỢP PHẦN</span>
+            </div>
+
+            <div id="poka-yoke-alarm-container"></div>
+
+            <div style="display: flex; flex-direction: column; gap: 0.65rem;">
+              <!-- 1. Tread -->
+              <div class="component-scan-row" id="row-comp-TREAD">
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 2px;">
+                  <span><strong>1. Mặt lốp (Tread)</strong> - <span class="spec-label" id="spec-TREAD">--</span></span>
+                  <span class="status-label" id="status-TREAD">Chưa quét</span>
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                  <input type="text" class="form-control" id="lot-input-TREAD" placeholder="Mã vạch lô mặt lốp..." onchange="validateLotSingle('TREAD')">
+                  <button class="btn btn-secondary btn-sm" onclick="validateLotSingle('TREAD')">Kiểm Tra</button>
+                </div>
+              </div>
+
+              <!-- 2. Sidewall -->
+              <div class="component-scan-row" id="row-comp-SIDEWALL">
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 2px;">
+                  <span><strong>2. Hông lốp (Sidewall)</strong> - <span class="spec-label" id="spec-SIDEWALL">--</span></span>
+                  <span class="status-label" id="status-SIDEWALL">Chưa quét</span>
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                  <input type="text" class="form-control" id="lot-input-SIDEWALL" placeholder="Mã vạch lô hông lốp..." onchange="validateLotSingle('SIDEWALL')">
+                  <button class="btn btn-secondary btn-sm" onclick="validateLotSingle('SIDEWALL')">Kiểm Tra</button>
+                </div>
+              </div>
+
+              <!-- 3. Steel Belt 1 -->
+              <div class="component-scan-row" id="row-comp-BELT_1">
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 2px;">
+                  <span><strong>3. Mành thép 1 (Steel Belt 1)</strong> - <span class="spec-label" id="spec-BELT_1">--</span></span>
+                  <span class="status-label" id="status-BELT_1">Chưa quét</span>
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                  <input type="text" class="form-control" id="lot-input-BELT_1" placeholder="Mã vạch lô mành thép 1..." onchange="validateLotSingle('BELT_1')">
+                  <button class="btn btn-secondary btn-sm" onclick="validateLotSingle('BELT_1')">Kiểm Tra</button>
+                </div>
+              </div>
+
+              <!-- 4. Steel Belt 2 -->
+              <div class="component-scan-row" id="row-comp-BELT_2">
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 2px;">
+                  <span><strong>4. Mành thép 2 (Steel Belt 2)</strong> - <span class="spec-label" id="spec-BELT_2">--</span></span>
+                  <span class="status-label" id="status-BELT_2">Chưa quét</span>
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                  <input type="text" class="form-control" id="lot-input-BELT_2" placeholder="Mã vạch lô mành thép 2..." onchange="validateLotSingle('BELT_2')">
+                  <button class="btn btn-secondary btn-sm" onclick="validateLotSingle('BELT_2')">Kiểm Tra</button>
+                </div>
+              </div>
+
+              <!-- 5. Body Ply -->
+              <div class="component-scan-row" id="row-comp-PLY">
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 2px;">
+                  <span><strong>5. Mành sợi thân (Body Ply)</strong> - <span class="spec-label" id="spec-PLY">--</span></span>
+                  <span class="status-label" id="status-PLY">Chưa quét</span>
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                  <input type="text" class="form-control" id="lot-input-PLY" placeholder="Mã vạch lô mành sợi thân..." onchange="validateLotSingle('PLY')">
+                  <button class="btn btn-secondary btn-sm" onclick="validateLotSingle('PLY')">Kiểm Tra</button>
+                </div>
+              </div>
+
+              <!-- 6. Bead -->
+              <div class="component-scan-row" id="row-comp-BEAD">
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 2px;">
+                  <span><strong>6. Vòng tanh thép (Bead Ring)</strong> - <span class="spec-label" id="spec-BEAD">--</span></span>
+                  <span class="status-label" id="status-BEAD">Chưa quét</span>
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                  <input type="text" class="form-control" id="lot-input-BEAD" placeholder="Mã vạch lô tanh thép..." onchange="validateLotSingle('BEAD')">
+                  <button class="btn btn-secondary btn-sm" onclick="validateLotSingle('BEAD')">Kiểm Tra</button>
+                </div>
+              </div>
+
+              <!-- 7. Innerliner -->
+              <div class="component-scan-row" id="row-comp-INNERLINER">
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 2px;">
+                  <span><strong>7. Lớp lót kín khí (Innerliner)</strong> - <span class="spec-label" id="spec-INNERLINER">--</span></span>
+                  <span class="status-label" id="status-INNERLINER">Chưa quét</span>
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                  <input type="text" class="form-control" id="lot-input-INNERLINER" placeholder="Mã vạch lô màng kín khí..." onchange="validateLotSingle('INNERLINER')">
+                  <button class="btn btn-secondary btn-sm" onclick="validateLotSingle('INNERLINER')">Kiểm Tra</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Build Action -->
+            <div style="margin-top: 1.25rem;">
+              <button class="btn btn-success btn-lg" id="btn-build-green-tire" style="width: 100%; font-size: 1.05rem;" onclick="executeBuildGreenTire()">
+                🚀 KÍCH HOẠT ĐÓNG LỐP (BUILD GREEN TIRE)
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TAB 4: CURING PRESSES SCADA MATRIX                                 -->
+    <!-- =================================================================== -->
+    <section id="pane-curing" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🔥 Trạm Lưu Hóa Lốp (Curing Presses SCADA Matrix)</div>
+            <div class="card-subtitle">Giám sát áp suất hơi nhiệt, nhiệt độ khuôn, chu kỳ bàng lưu hóa và điều khiển ép nhiệt</div>
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <span class="status-badge" style="background: rgba(6, 182, 212, 0.1); border-color: rgba(6, 182, 212, 0.3); color: #38bdf8;">
+              <span class="pulse-dot" style="background-color: #38bdf8;"></span>
+              Chu kỳ cập nhật SCADA: 3s
+            </span>
+            <button class="btn btn-secondary btn-sm" onclick="loadCuringPresses()">Làm Mới</button>
+          </div>
+        </div>
+
+        <!-- Curing Presses Grid -->
+        <div class="curing-grid" id="curing-presses-grid">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- REAL-TIME STREAMING TELEMETRY HISTORIAN (MODULE 5) -->
+        <div class="card" style="margin-top: 1.5rem; background: #0b0f19; border: 1px solid #1e293b;">
+          <div class="card-header" style="border-bottom: 1px solid #1e293b;">
+            <div>
+              <div class="card-title" style="font-size: 0.95rem; color: #38bdf8;">
+                📡 Luồng Dữ Liệu Cảm Biến PLC Đẩy Về Thời Gian Thực (Live Historian Stream & WAL Persistence)
+              </div>
+              <div class="card-subtitle">
+                Tần số quét: <strong>3000ms/chu kỳ</strong> &bull; Ghi vĩnh viễn vào CSDL bảng <code>curing_telemetry_history</code> &bull; Hỗ trợ WebSocket <code>ws://localhost:8000/ws/telemetry</code>
+              </div>
+            </div>
+            <div style="display: flex; gap: 0.75rem; align-items: center;">
+              <span class="status-badge" style="background: rgba(16, 185, 129, 0.1); color: #34d399; font-size: 0.75rem;">
+                <span class="pulse-dot"></span> STREAMING REAL-TIME
+              </span>
+              <div style="font-size: 0.8rem; color: #94a3b8; font-family: var(--font-mono);">
+                Đã lưu CSDL: <strong id="stream-total-logged" style="color: #38bdf8;">--</strong> điểm
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Oscilloscope Canvas -->
+          <div style="padding: 0.5rem 0; margin-bottom: 0.75rem;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px;">
+              <span>Đồ thị dao động nhiệt áp thời gian thực (Live PLC Sensor Waveform):</span>
+              <span>
+                <span style="color: #f59e0b; font-weight: 700;">● Nhiệt độ khuôn (170&deg;C)</span> &nbsp;&bull;&nbsp;
+                <span style="color: #06b6d4; font-weight: 700;">● Áp suất bàng (21 bar)</span>
+              </span>
+            </div>
+            <canvas id="telemetry-live-canvas" width="1000" height="110" style="width: 100%; height: 110px; background: #070a12; border-radius: 6px; border: 1px solid #1e293b; display: block;"></canvas>
+          </div>
+
+          <!-- Latest Logged Ingestion Records Table -->
+          <div class="table-responsive">
+            <table class="table" style="font-size: 0.78rem;">
+              <thead>
+                <tr>
+                  <th>ID Bản Ghi</th>
+                  <th>Thời Gian (Timestamp)</th>
+                  <th>Thiết Bị / Hộc Khuôn</th>
+                  <th>Nhiệt Độ Khuôn (&deg;C)</th>
+                  <th>Áp Suất Bàng (bar)</th>
+                  <th>Áp Suất Hơi (bar)</th>
+                  <th>Giai Đoạn (Phase)</th>
+                  <th>Trạng Thái Ghi Đĩa</th>
+                </tr>
+              </thead>
+              <tbody id="stream-live-tbody">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TAB 5: QUALITY INSPECTION & DISPOSITION (KCS)                      -->
+    <!-- =================================================================== -->
+    <section id="pane-quality" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🔍 Trạm Kiểm Tra Hoàn Thiện & KCS (Finishing & Quality Gate)</div>
+            <div class="card-subtitle">Soi X-Ray cấu trúc mành thép, kiểm tra ngoại quan và đo cân bằng động / độ đồng đều UF</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="loadInspectionQueue()">Làm Mới Hàng Đợi</button>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1.8fr; gap: 1.5rem;">
+          <!-- Left: Inspection Queue -->
+          <div>
+            <h4 style="color: #38bdf8; font-size: 0.9rem; margin-bottom: 0.75rem;">HÀNG ĐỢI LỐP CHỜ KIỂM TRA (INSPECTION QUEUE)</h4>
+            <div id="inspection-queue-list" style="max-height: 520px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem;">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+
+          <!-- Right: Inspection Test Bench -->
+          <div id="qc-testbench" style="background: #162032; padding: 1.25rem; border-radius: 8px; border: 1px solid var(--border-color);">
+            <div id="qc-placeholder-msg" style="text-align: center; padding: 3rem 1rem; color: #94a3b8;">
+              Vui lòng chọn 1 chiếc lốp từ Hàng Đợi bên trái để tiến hành kiểm tra KCS.
+            </div>
+
+            <div id="qc-active-form" style="display: none;">
+              <!-- Tire header -->
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+                <div>
+                  <h3 id="qc-tire-serial" style="color: #38bdf8; font-family: var(--font-mono);">VN-T-XXXXX</h3>
+                  <div id="qc-tire-desc" style="font-size: 0.85rem; color: #cbd5e1;">205/55R16 TURBO-GRIP T7</div>
+                </div>
+                <div style="text-align: right;">
+                  <div style="font-size: 0.75rem; color: #94a3b8;">NGUỒN LƯU HÓA:</div>
+                  <div id="qc-press-origin" style="font-weight: 700; color: #f1f5f9;">CP-01 L</div>
+                </div>
+              </div>
+
+              <!-- Inspector Selector -->
+              <div class="form-group">
+                <label class="form-label">KCS Inspector (Kiểm Nghiệm Viên)</label>
+                <select class="form-control" id="qc-inspector-select">
+                  <option value="OP-3001">OP-3001: Đỗ Thị Mai (KCS Trưởng - Bậc 5/5)</option>
+                  <option value="OP-3002">OP-3002: Hoàng Đức Trọng (Chuyên Viên X-Ray - Bậc 4/5)</option>
+                </select>
+              </div>
+
+              <!-- Test 1: Visual Inspection -->
+              <div style="background: #111827; padding: 1rem; border-radius: 6px; border: 1px solid var(--border-color); margin-bottom: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                  <strong style="color: #f1f5f9; font-size: 0.88rem;">1. Kiểm Tra Ngoại Quan & Cảm Quan (Visual Test)</strong>
+                  <div>
+                    <label style="margin-right: 1rem;"><input type="radio" name="qc-visual-radio" value="PASS" checked onchange="toggleVisualDefectUI()"> Đạt (Pass)</label>
+                    <label><input type="radio" name="qc-visual-radio" value="FAIL" onchange="toggleVisualDefectUI()"> Không Đạt (Fail)</label>
+                  </div>
+                </div>
+
+                <div id="qc-visual-defect-row" style="display: none; margin-top: 0.75rem;">
+                  <div class="form-group">
+                    <label class="form-label">Mã Lỗi Ngoại Quan</label>
+                    <select class="form-control" id="qc-visual-defect-select">
+                      <option value="DEF-VIS-01">DEF-VIS-01: Bọt khí hông lốp (Critical -> Scrap)</option>
+                      <option value="DEF-VIS-02">DEF-VIS-02: Lệch tâm gai mặt lốp (Major -> Grade B)</option>
+                      <option value="DEF-VIS-03">DEF-VIS-03: Bavia gai quá dài (Minor -> Rework)</option>
+                      <option value="DEF-VIS-04">DEF-VIS-04: Biến dạng móp tanh lốp (Critical -> Scrap)</option>
+                      <option value="DEF-VIS-05">DEF-VIS-05: Khuyết cao su hoa gai (Major -> Grade B)</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Vị trí khuyết tật</label>
+                    <input type="text" class="form-control" id="qc-visual-location" placeholder="Ví dụ: Hông lốp góc 90 độ, Vai lốp...">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Test 2: X-Ray Inspection -->
+              <div style="background: #111827; padding: 1rem; border-radius: 6px; border: 1px solid var(--border-color); margin-bottom: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                  <strong style="color: #f1f5f9; font-size: 0.88rem;">2. Soi Cấu Trúc X-Ray (X-Ray Tire Inspection)</strong>
+                  <div>
+                    <label style="margin-right: 1rem;"><input type="radio" name="qc-xray-radio" value="PASS" checked onchange="toggleXrayDefectUI()"> Đạt (Pass)</label>
+                    <label><input type="radio" name="qc-xray-radio" value="FAIL" onchange="toggleXrayDefectUI()"> Lỗi Mành (Fail)</label>
+                  </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.5rem;">
+                  <div class="form-group">
+                    <label class="form-label">Độ lệch mép mành Belt (mm)</label>
+                    <input type="number" step="0.1" class="form-control" id="qc-belt-align" value="0.2">
+                  </div>
+                  <div id="qc-xray-defect-col" style="display: none;">
+                    <label class="form-label">Mã Lỗi X-Ray</label>
+                    <select class="form-control" id="qc-xray-defect-select">
+                      <option value="DEF-XRAY-01">DEF-XRAY-01: Đè mép mành thép (Critical -> Scrap)</option>
+                      <option value="DEF-XRAY-02">DEF-XRAY-02: Dãn cách mành không đều (Major -> Grade B)</option>
+                      <option value="DEF-XRAY-03">DEF-XRAY-03: Dị vật kim loại (Critical -> Scrap)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Test 3: Uniformity & Dynamic Balancing (UF) -->
+              <div style="background: #111827; padding: 1rem; border-radius: 6px; border: 1px solid var(--border-color); margin-bottom: 1rem;">
+                <strong style="color: #f1f5f9; font-size: 0.88rem; display: block; margin-bottom: 0.5rem;">
+                  3. Độ Đồng Đều & Cân Bằng Động (UF / Dynamic Balancing)
+                </strong>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem;">
+                  <div class="form-group">
+                    <label class="form-label">Lực RFV (N) [&le; 80N]</label>
+                    <input type="number" step="0.5" class="form-control" id="qc-rfv" value="42.5">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Lực LFV (N)</label>
+                    <input type="number" step="0.5" class="form-control" id="qc-lfv" value="18.0">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Mất cân bằng (g) [&le; 30g]</label>
+                    <input type="number" step="0.5" class="form-control" id="qc-balance" value="15.0">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Submit Button -->
+              <button class="btn btn-primary btn-lg" style="width: 100%;" onclick="submitQCInspection()">
+                ✅ XÁC NHẬN KẾT QUẢ KCS & PHÂN LOẠI CẤP HẠNG
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ANTI-SKIP & SEQUENCE INTERLOCK CONTROL PANEL (CHỐNG NHẢY CÓC CÔNG ĐOẠN) -->
+        <div class="card" style="margin-top: 1.5rem; background: #0c1322; border: 1px solid #1e293b;">
+          <div class="card-header" style="border-bottom: 1px solid #1e293b;">
+            <div>
+              <div class="card-title" style="color: #f59e0b; display: flex; align-items: center; gap: 8px;">
+                <span>🔒 CƠ CHẾ LIÊN KHÓA CHỐNG NHẢY CÓC CÔNG ĐOẠN (ANTI-SKIP SEQUENCE INTERLOCK)</span>
+                <span class="status-pill pill-amber" style="font-size: 0.72rem;">ISA-95 LEVEL 3 ENFORCEMENT</span>
+              </div>
+              <div class="card-subtitle">
+                Kiểm soát luồng sản phẩm nghiêm ngặt: <em>Bán thành phẩm &rarr; Đóng lốp TBM &rarr; Lưu hóa nhiệt áp &rarr; Kiểm định KCS &rarr; Nhập kho xuất xưởng</em>. Cấm tuyệt đối bỏ qua công đoạn!
+              </div>
+            </div>
+            <span class="status-badge" style="background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.3); color: #fbbf24;">
+              Interlock Active: 100% Gates Protected
+            </span>
+          </div>
+
+          <!-- Quick Test Simulation Presets -->
+          <div style="padding: 1rem 0; border-bottom: 1px dashed rgba(255,255,255,0.1);">
+            <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.5rem; font-weight: 600;">
+              🧪 KỊCH BẢN THỬ NGHIỆM XÂM PHẠM QUY TRÌNH (TEST CASES NHẢY CÓC):
+            </div>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <button class="btn btn-secondary btn-sm" onclick="testAntiSkipPreset('CURING_SKIP')" style="border-color: #ef4444; color: #fca5a5;">
+                🚫 Thử Lỗi 1: Lốp sống chưa lưu hóa đòi sang KCS (Skip Curing)
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="testAntiSkipPreset('QC_SKIP')" style="border-color: #ef4444; color: #fca5a5;">
+                🚫 Thử Lỗi 2: Lốp đã chín chưa KCS đòi xuất kho (Skip QC)
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="testAntiSkipPreset('SCRAP_BREACH')" style="border-color: #ef4444; color: #fca5a5;">
+                🚫 Thử Lỗi 3: Lốp Phế phẩm (Scrap) cố tình xuất kho (Scrap Breach)
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="testAntiSkipPreset('VALID_DISPATCH')" style="border-color: #10b981; color: #6ee7b7;">
+                ✅ Thử Hợp Lệ: Lốp Hạng A đầy đủ phả hệ xuất kho (Pass)
+              </button>
+            </div>
+          </div>
+
+          <!-- Interactive Scanner Test Form -->
+          <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 0.75rem; align-items: flex-end; margin-top: 1rem;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label">Mã Lốp Quét Được (Barcode / Sê-ri)</label>
+              <input type="text" class="form-control" id="anti-skip-input-id" value="GT-202610-0019" placeholder="GT-... hoặc VN-T-..." style="font-family: var(--font-mono);">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label">Công Đoạn Đích Cần Chuyển Vào</label>
+              <select class="form-control" id="anti-skip-target-stage">
+                <option value="CURING">Lò Lưu Hóa (CURING)</option>
+                <option value="FINISHING" selected>Bàn Kiểm Tra KCS (FINISHING)</option>
+                <option value="WAREHOUSE">Kho Thành Phẩm (WAREHOUSE)</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <button class="btn btn-primary" onclick="verifyStageManual()" style="width: 100%;">
+                ⚡ Kiểm Tra Liên Khóa (Verify Gate)
+              </button>
+            </div>
+          </div>
+
+          <!-- Live Result Display Box -->
+          <div id="anti-skip-result-box" style="margin-top: 1rem; display: none;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TAB 6: 100% DIGITAL TIRE PASSPORT & GENEALOGY                      -->
+    <!-- =================================================================== -->
+    <section id="pane-genealogy" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🛡️ Hộ Chiếu Số & Truy Xuất Nguồn Gốc 100% (Digital Tire Passport)</div>
+            <div class="card-subtitle">Tra cứu toàn diện toàn bộ lịch sử từ mẻ cao su Banbury, cuộn mành thép, máy đóng lốp, lò lưu hóa đến KCS</div>
+          </div>
+        </div>
+
+        <!-- Search Bar & Sample Presets -->
+        <div style="margin-bottom: 1.5rem;">
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+            <input type="text" class="form-control" id="passport-search-input" placeholder="Nhập Số sê-ri lốp (VN-T-...) hoặc Mã lốp sống (GT-...)" value="VN-T-202610-00101" style="font-size: 1rem; font-family: var(--font-mono);">
+            <button class="btn btn-primary" onclick="lookupPassport()">🔍 Tra Cứu</button>
+          </div>
+
+          <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <span style="font-size: 0.8rem; color: #94a3b8;">Mẫu thử nghiệm nhanh:</span>
+            <button class="btn btn-secondary btn-sm" onclick="quickLookup('VN-T-202610-00101')">✨ Lốp Hạng A Xuất Khẩu (VN-T-202610-00101)</button>
+            <button class="btn btn-secondary btn-sm" onclick="quickLookup('VN-T-202610-00105')">⚠️ Lốp Hạng B Thương Mại (VN-T-202610-00105)</button>
+            <button class="btn btn-secondary btn-sm" onclick="quickLookup('VN-T-202610-00108')">❌ Lốp Phế Phẩm X-Ray (VN-T-202610-00108)</button>
+          </div>
+        </div>
+
+        <!-- Passport Display Card -->
+        <div id="passport-view-area">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TAB 7: MASTER DATA & SYSTEM CONFIG                                 -->
+    <!-- =================================================================== -->
+    <section id="pane-master-data" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">📁 Dữ Liệu Nền Tảng (Master Data Management)</div>
+            <div class="card-subtitle">Danh mục sản phẩm, định mức BOM, đơn công nghệ lưu hóa và thư viện mã lỗi chuẩn</div>
+          </div>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="showMasterSubTab('products')">Sản Phẩm (SKU)</button>
+            <button class="btn btn-secondary btn-sm" onclick="showMasterSubTab('equipment')">Thiết Bị (Equipment)</button>
+            <button class="btn btn-secondary btn-sm" onclick="showMasterSubTab('defects')">Mã Lỗi (Defects)</button>
+            <button class="btn btn-secondary btn-sm" onclick="showMasterSubTab('operators')">Nhân Sự (Operators)</button>
+            <button class="btn btn-primary btn-sm" onclick="showMasterSubTab('documents')">📄 Tài Liệu & SOP (Doc Control)</button>
+          </div>
+        </div>
+
+        <div id="master-subcontent">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TAB 8: INDUSTRIAL PROTOCOL GATEWAY (PLC & IIoT CONNECTIVITY)       -->
+    <!-- =================================================================== -->
+    <section id="pane-gateway" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🌐 Cổng Kết Nối Đa Giao Thức PLC & IIoT (Industrial Protocol Gateway)</div>
+            <div class="card-subtitle">Hỗ trợ đầy đủ 5 giao thức công nghiệp: OPC-UA, OPC-DA (DCOM), Modbus TCP, MQTT (Sparkplug B) và TCP/IP Raw Sockets</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="loadGatewayConnectors()">Làm Mới Trạng Thái</button>
+        </div>
+
+        <!-- Protocol Comparison Banner -->
+        <div style="background: linear-gradient(90deg, #162032, #101c2e); border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+          <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+            <div>🟢 <strong>OPC-UA</strong>: Bảo mật TLS, Binary TCP 4840</div>
+            <div>🟡 <strong>OPC-DA</strong>: Chuẩn DCOM kinh điển Port 135</div>
+            <div>🔵 <strong>Modbus TCP</strong>: Thanh ghi 40001+ Port 502</div>
+            <div>🟣 <strong>MQTT</strong>: Pub/Sub IIoT Cloud Port 1883</div>
+            <div>🟠 <strong>TCP Socket</strong>: ASCII Raw Stream Port 2001</div>
+          </div>
+          <span class="status-pill pill-green">5/5 CỔNG ĐANG ONLINE</span>
+        </div>
+
+        <!-- Connectors Cards Grid -->
+        <div id="gateway-connectors-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); gap: 1.25rem;">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- Terminal Log Viewer -->
+        <div class="card" style="margin-top: 1.5rem; background: #0b0f19;">
+          <div class="card-header" style="border-bottom: 1px solid #1e293b;">
+            <div class="card-title" style="font-size: 0.9rem;">
+              📟 Nhật Ký Giao Tiếp Gói Tin PLC / OT Network (Industrial Packet Inspector)
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="clearGatewayLogs()">Xóa Nhật Ký</button>
+          </div>
+          <pre id="gateway-terminal-logs" style="background: #070a12; color: #38bdf8; font-family: var(--font-mono); font-size: 0.8rem; padding: 1rem; border-radius: 6px; max-height: 250px; overflow-y: auto; margin: 0; line-height: 1.4;">[SYSTEM] Sẵn sàng kiểm tra giao tiếp với 5 loại giao thức công nghiệp. Bấm '⚡ Test Handshake' trên từng cổng để kiểm tra ping thực tế...</pre>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===================================================================== -->
+  <!-- MODALS                                                                -->
+  <!-- ===================================================================== -->
+
+  <!-- Modal: Create Work Order -->
+  <div class="modal-backdrop" id="modal-create-wo">
+    <div class="modal-content">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+        <h3 style="color: #fff;">Tạo Lệnh Sản Xuất Mới (New Work Order)</h3>
+        <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-create-wo')">✕</button>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Mã Lệnh Sản Xuất (Work Order ID)</label>
+        <input type="text" class="form-control" id="new-wo-id" value="WO-2026-006">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Chọn Mã Sản Phẩm (Tire SKU)</label>
+        <select class="form-control" id="new-wo-sku">
+          <option value="PCR-205-55R16-91V">PCR-205-55R16-91V - TURBO-GRIP T7 (9.25 kg)</option>
+          <option value="PCR-225-60R17-99H">PCR-225-60R17-99H - ECO-SUV S2 (12.10 kg)</option>
+          <option value="EV-245-45R19-102Y">EV-245-45R19-102Y - AERO-SILENT EV9 (11.45 kg)</option>
+          <option value="TBR-315-80R22.5-156K">TBR-315-80R22.5-156K - HEAVY-MAX H8 (68.50 kg)</option>
+          <option value="TBR-11R22.5-148L">TBR-11R22.5-148L - ROAD-MASTER R5 (54.20 kg)</option>
+        </select>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div class="form-group">
+          <label class="form-label">Số Lượng Kế Hoạch (Chiếc)</label>
+          <input type="number" class="form-control" id="new-wo-target" value="200">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Độ Ưu Tiên</label>
+          <select class="form-control" id="new-wo-priority">
+            <option value="NORMAL">Bình Thường (Normal)</option>
+            <option value="HIGH">Ưu Tiên Cao (High)</option>
+            <option value="URGENT">Khẩn Cấp (Urgent)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Dây Chuyền Giao Máy</label>
+        <select class="form-control" id="new-wo-machine">
+          <option value="TBM-01">TBM-01 (VMI MAXX PCR)</option>
+          <option value="TBM-02">TBM-02 (HF Tire Tech TBR)</option>
+        </select>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+        <button class="btn btn-secondary" onclick="closeModal('modal-create-wo')">Hủy Bỏ</button>
+        <button class="btn btn-primary" onclick="submitCreateWO()">Tạo Lệnh Sản Xuất</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Green Tire Label Preview -->
+  <div class="modal-backdrop" id="modal-gt-label">
+    <div class="modal-content" style="max-width: 500px; text-align: center;">
+      <div style="border: 2px dashed #38bdf8; padding: 1.5rem; border-radius: 8px; background: #0b1329;">
+        <div style="font-size: 0.75rem; letter-spacing: 0.1em; color: #94a3b8; margin-bottom: 0.5rem;">NHÃN LỐP SỐNG &bull; GREEN TIRE BARCODE</div>
+        <h2 id="lbl-gt-barcode" style="color: #38bdf8; font-family: var(--font-mono); letter-spacing: 2px; margin-bottom: 0.5rem;">GT-XXXXXXXX</h2>
+
+        <!-- Barcode Graphic simulation -->
+        <div style="height: 48px; background: repeating-linear-gradient(90deg, #fff 0, #fff 3px, #000 3px, #000 6px, #fff 6px, #fff 10px, #000 10px, #000 12px); margin: 0.75rem auto; width: 85%;"></div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; text-align: left; font-size: 0.82rem; margin-top: 1rem; color: #cbd5e1;">
+          <div>Kích Cỡ: <strong id="lbl-tire-size" style="color: #fff;">--</strong></div>
+          <div>Trọng Lượng: <strong id="lbl-weight" style="color: #fff;">-- kg</strong></div>
+          <div>Trạm Máy: <strong id="lbl-machine" style="color: #fff;">--</strong></div>
+          <div>Công Nhân: <strong id="lbl-op" style="color: #fff;">--</strong></div>
+        </div>
+      </div>
+
+      <div style="margin-top: 1.25rem; display: flex; justify-content: center; gap: 0.75rem;">
+        <button class="btn btn-success" onclick="closeModal('modal-gt-label')">✓ In Nhãn & Hoàn Tất</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
